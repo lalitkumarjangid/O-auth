@@ -31,7 +31,7 @@ const authMiddleware = (req, res, next) => {
 contentRouter.post("/content", uploadFile, authMiddleware, createContent);
 contentRouter.get("/files/:id", authMiddleware, getContentById);
 contentRouter.put("/content/:id", authMiddleware, updateContent);
-contentRouter.post("/upload", authMiddleware, createContent);
+contentRouter.post("/upload",uploadFile, authMiddleware, createContent);
 contentRouter.get("/files", authMiddleware, getContent);
 contentRouter.delete("/:id", authMiddleware, deleteContent);
 contentRouter.post("/sync-drive", authMiddleware, syncWithGoogleDrive);
