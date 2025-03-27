@@ -3,15 +3,19 @@ import mongoose from 'mongoose';
 const userSchema = new mongoose.Schema({
   googleId: {
     type: String,
-    required: true
+   
   },
   displayName: {
     type: String,
-    required: true
+     
   },
   email: {
     type: String,
-    required: true
+     
+  },
+  photoURL: {
+    type: String,
+    default: null
   },
   role: {
     type: String,
@@ -19,7 +23,10 @@ const userSchema = new mongoose.Schema({
     enum: ['user', 'admin'] 
   },
   refreshToken: { type: String },
- 
+  lastLogin: {
+    type: Date,
+    default: Date.now
+  }
 }, { timestamps: true });
 
 export default mongoose.model('User', userSchema);
