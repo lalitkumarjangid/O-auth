@@ -10,31 +10,33 @@ passport.use(
     {
       clientID: process.env.GOOGLE_CLIENT_ID,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-      callbackURL: '/auth/google/callback',
+      callbackURL: process.env.GOOGLE_REDIRECT_URI,
       passReqToCallback: true,
-      accessType: "offline", // Request offline access to get refresh token
-      prompt: "consent", // Ensures the refresh token is provided
     },
-    async (request, accessToken, refreshToken, profile, done) => {
+    async (req, accessToken, refreshToken, profile, done) => {
       try {
+        // Find or create user
         let user = await User.findOne({ googleId: profile.id });
-
-        if (!user) {
-          user = new User({
+        
+        if (user) {
+          // Update the user's refresh token if we got a new one
+          if (refreshToken) {
+            user.refreshToken = refreshToken;
+            await user.save();
+          }
+        } else {
+          // Create new user with refresh token
+          user = await User.create({
             googleId: profile.id,
             displayName: profile.displayName,
             email: profile.emails[0].value,
-            refreshToken, // Store refresh token
+            refreshToken: refreshToken,
           });
-          await user.save();
-        } else {
-          user.refreshToken = refreshToken; // Update refresh token
-          await user.save();
         }
-
+        
         return done(null, user);
-      } catch (err) {
-        return done(err, null);
+      } catch (error) {
+        return done(error, null);
       }
     }
   )
