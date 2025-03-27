@@ -7,7 +7,8 @@ import {
   getUser,
   refreshAccessToken,
 } from "../controllers/authController.js";
-import { authMiddleware } from "../middleware/authmiddleware.js";
+import { authMiddleware } from "../middleware/authMiddleware.js";
+
 
 
 const authRouter = express.Router();
