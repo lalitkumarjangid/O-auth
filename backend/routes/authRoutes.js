@@ -1,17 +1,21 @@
-import express from 'express';
+import express from "express";
 import {
   googleAuth,
   googleCallback,
   googleCallbackRedirect,
   logout,
-  getUser
-} from '../controllers/authController.js';
+  getUser,
+  refreshAccessToken,
+} from "../controllers/authController.js";
+import { authMiddleware } from "../middleware/authmiddleware.js";
 
-const router = express.Router();
 
-router.get('/google', googleAuth);
-router.get('/google/callback', googleCallback, googleCallbackRedirect);
-router.get('/logout', logout);
-router.get('/user', getUser);
+const authRouter = express.Router();
 
-export default router;
+authRouter.get("/google", googleAuth);
+authRouter.get("/google/callback", googleCallback, googleCallbackRedirect);
+authRouter.get("/logout", logout);
+authRouter.get("/user", getUser);
+authRouter.get("/refresh-token", authMiddleware, refreshAccessToken); // Protected route
+
+export default authRouter;
