@@ -14,7 +14,6 @@ const oauth2Client = new google.auth.OAuth2(
 // Helper function to log info in development
 const logInfo = (message, data) => {
   if (process.env.NODE_ENV !== 'production') {
-    console.log(`[AUTH] ${message}`, data || '');
   }
 };
 
@@ -28,7 +27,6 @@ export const googleAuth = (req, res, next) => {
 };
 
 export const googleCallback = (req, res, next) => {
-  console.log('[AUTH] Google callback received');
   
   passport.authenticate(
     "google",
@@ -38,32 +36,29 @@ export const googleCallback = (req, res, next) => {
     },
     (err, user, info) => {
       if (err) {
-        console.error('[AUTH] Google auth error:', err);
         return next(err);
       }
       
       if (!user) {
-        console.log('[AUTH] No user returned from Google auth');
         return res.redirect(`${process.env.FRONTEND_URL}/login?error=no_user`);
       }
 
-      console.log('[AUTH] User authenticated:', user._id);
+ 
       
       req.login(user, (loginErr) => {
         if (loginErr) {
-          console.error('[AUTH] Login error:', loginErr);
+      
           return next(loginErr);
         }
         
-        // Set a secure HTTP-only cookie with JWT for cross-domain auth
+        
         res.cookie('auth_token', user._id, {
           httpOnly: true,
-          secure: true, // Always use secure in production
-          sameSite: 'none', // Required for cross-domain
+          secure: true, 
+          sameSite: 'none', 
           maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
         });
         
-        console.log(`[AUTH] Redirecting to dashboard: ${process.env.FRONTEND_URL}/dashboard`);
         return res.redirect(`${process.env.FRONTEND_URL}/dashboard`);
       });
     }
@@ -71,15 +66,10 @@ export const googleCallback = (req, res, next) => {
 };
 
 export const getUser = async (req, res) => {
-  console.log('[AUTH] getUser called');
-  console.log('[AUTH] isAuthenticated:', req.isAuthenticated());
-  console.log('[AUTH] Session:', req.session);
-  console.log('[AUTH] Cookies:', req.cookies);
   
   try {
     // First try via session
     if (req.isAuthenticated() && req.user) {
-      console.log('[AUTH] User authenticated via session:', req.user._id);
       return res.json({
         user: {
           id: req.user._id,
@@ -93,14 +83,12 @@ export const getUser = async (req, res) => {
     // Then try via cookie
     const authToken = req.cookies?.auth_token;
     if (authToken) {
-      console.log('[AUTH] Authenticating via cookie token');
       const user = await User.findById(authToken);
       if (user) {
         // Re-establish session
         await new Promise((resolve, reject) => {
           req.login(user, (err) => {
             if (err) {
-              console.error('[AUTH] Error re-establishing session:', err);
               reject(err);
             } else {
               resolve();
@@ -108,7 +96,6 @@ export const getUser = async (req, res) => {
           });
         });
         
-        console.log('[AUTH] User authenticated via cookie:', user._id);
         return res.json({
           user: {
             id: user._id,
@@ -120,10 +107,8 @@ export const getUser = async (req, res) => {
       }
     }
     
-    console.log('[AUTH] No authenticated user found');
     res.status(401).json({ message: "Not authenticated" });
   } catch (error) {
-    console.error('[AUTH] getUser error:', error);
     res.status(500).json({ message: "Server error", error: error.message });
   }
 };

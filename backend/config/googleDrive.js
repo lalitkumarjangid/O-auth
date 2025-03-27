@@ -60,7 +60,6 @@ export const saveTextToGoogleDrive = async (refreshToken, title, content) => {
 
     return response.data;
   } catch (error) {
-    console.error("Error saving to Google Drive:", error);
     throw error;
   }
 };
@@ -82,7 +81,6 @@ export const getFilesFromGoogleDrive = async (refreshToken) => {
     
     return response.data.files;
   } catch (error) {
-    console.error("Error fetching files from Google Drive:", error);
     throw error;
   }
 };
@@ -99,7 +97,6 @@ export const deleteFileFromGoogleDrive = async (refreshToken, fileId) => {
     await drive.files.delete({ fileId });
     return true;
   } catch (error) {
-    console.error("Error deleting file from Google Drive:", error);
     throw error;
   }
 };
