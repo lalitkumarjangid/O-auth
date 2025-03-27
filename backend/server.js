@@ -7,25 +7,28 @@ import connectDB from "./config/db.js";
 import "./config/passport.js";
 import contentRouter from "./routes/contentRoutes.js";
 import authRouter from "./routes/authRoutes.js";
+import cookieParser from "cookie-parser";
 
 dotenv.config();
 
 const app = express();
 
-if (process.env.NODE_ENV !== 'production') {
+if (process.env.NODE_ENV !== "production") {
   connectDB();
 }
 
 app.use(
   cors({
-    origin: process.env.NODE_ENV === 'production' 
-      ? process.env.FRONTEND_URL 
-      : "http://localhost:5173",
+    origin:
+      process.env.NODE_ENV === "production"
+        ? process.env.FRONTEND_URL
+        : "http://localhost:5173",
     credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization']
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization", "Cookie"],
   })
 );
+app.use(cookieParser());
 app.use(express.json());
 app.use(
   session({
@@ -44,10 +47,9 @@ app.get("/", (req, res) => {
   res.send("API is running...");
 });
 
-if (process.env.NODE_ENV !== 'production') {
+if (process.env.NODE_ENV !== "production") {
   const PORT = process.env.PORT || 3000;
   app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
 }
-
 
 export default app;

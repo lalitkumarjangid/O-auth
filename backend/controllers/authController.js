@@ -11,7 +11,15 @@ const oauth2Client = new google.auth.OAuth2(
   process.env.GOOGLE_REDIRECT_URI
 );
 
+// Helper function to log info in development
+const logInfo = (message, data) => {
+  if (process.env.NODE_ENV !== 'production') {
+    console.log(`[AUTH] ${message}`, data || '');
+  }
+};
+
 export const googleAuth = (req, res, next) => {
+  logInfo('Starting Google auth flow');
   return passport.authenticate("google", {
     scope: ["profile", "email", "https://www.googleapis.com/auth/drive.file"],
     accessType: "offline",
@@ -20,32 +28,63 @@ export const googleAuth = (req, res, next) => {
 };
 
 export const googleCallback = (req, res, next) => {
+  logInfo('Google callback received');
+  
   passport.authenticate(
     "google",
-    { failureRedirect: `${process.env.FRONTEND_URL}/login` },
+    { 
+      failureRedirect: `${process.env.FRONTEND_URL}/login?error=authentication_failed`,
+      session: true // Ensure session is being used
+    },
     (err, user, info) => {
-      if (err) return next(err);
-      if (!user) return res.redirect(`${process.env.FRONTEND_URL}/login`);
+      if (err) {
+        logInfo('Google auth error:', err);
+        return next(err);
+      }
+      
+      if (!user) {
+        logInfo('No user returned from Google auth');
+        return res.redirect(`${process.env.FRONTEND_URL}/login?error=no_user`);
+      }
 
-      // Note: refreshToken should already be stored in the user document
-      // in your database through your Passport strategy
-
+      logInfo('User authenticated:', user._id);
+      
       req.login(user, (loginErr) => {
-        if (loginErr) return next(loginErr);
+        if (loginErr) {
+          logInfo('Login error:', loginErr);
+          return next(loginErr);
+        }
+        
+        // Set a secure HTTP-only cookie as an extra authentication method
+        // This helps with some serverless environments where sessions might be inconsistent
+        res.cookie('auth_token', user._id, {
+          httpOnly: true,
+          secure: process.env.NODE_ENV === 'production',
+          sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+          maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+        });
+
+        logInfo(`Redirecting to dashboard: ${process.env.FRONTEND_URL}/dashboard`);
         return res.redirect(`${process.env.FRONTEND_URL}/dashboard`);
       });
     }
   )(req, res, next);
 };
 
-export const googleCallbackRedirect = (req, res, next) => {
+export const googleCallbackRedirect = (req, res) => {
+  logInfo('Redirect callback');
   res.redirect(`${process.env.FRONTEND_URL}/dashboard`);
 };
 
 export const logout = (req, res) => {
+  logInfo('Logging out user');
+  
+  // Clear auth cookie
+  res.clearCookie('auth_token');
+  
   req.logout((err) => {
     if (err) {
-      console.error("Logout error:", err);
+      logInfo('Logout error:', err);
       return res
         .status(500)
         .json({ message: "Logout failed", error: err.message });
@@ -54,9 +93,13 @@ export const logout = (req, res) => {
   });
 };
 
-export const getUser = (req, res) => {
-  if (req.user) {
-    res.json({
+export const getUser = async (req, res) => {
+  logInfo('getUser called, is authenticated?', req.isAuthenticated());
+  
+  // Try to authenticate using session
+  if (req.isAuthenticated() && req.user) {
+    logInfo('User authenticated via session:', req.user._id);
+    return res.json({
       user: {
         id: req.user._id,
         displayName: req.user.displayName,
@@ -64,24 +107,71 @@ export const getUser = (req, res) => {
         role: req.user.role,
       },
     });
-  } else {
-    res.status(401).json({ message: "Not authenticated" });
   }
+  
+  // If no session, try authentication via cookie
+  const authToken = req.cookies?.auth_token;
+  if (authToken) {
+    logInfo('Trying to authenticate via cookie token');
+    try {
+      const user = await User.findById(authToken);
+      if (user) {
+        logInfo('User authenticated via cookie:', user._id);
+        
+        // Re-establish session
+        req.login(user, (err) => {
+          if (err) {
+            logInfo('Error re-establishing session:', err);
+          }
+        });
+        
+        return res.json({
+          user: {
+            id: user._id,
+            displayName: user.displayName,
+            email: user.email,
+            role: user.role,
+          },
+        });
+      }
+    } catch (err) {
+      logInfo('Error finding user by token:', err);
+    }
+  }
+
+  logInfo('No authenticated user found');
+  res.status(401).json({ message: "Not authenticated" });
 };
 
 export const refreshAccessToken = async (req, res) => {
+  logInfo('Refreshing access token');
+  
   try {
-    if (!req.user) {
+    // Try session auth
+    let userId = req.user?._id;
+    
+    // If no session, try cookie auth
+    if (!userId) {
+      const authToken = req.cookies?.auth_token;
+      if (authToken) {
+        userId = authToken;
+      }
+    }
+    
+    if (!userId) {
+      logInfo('No user ID found for token refresh');
       return res.status(401).json({ error: "Not authenticated" });
     }
     
     // Fetch user with refreshToken from database
-    const user = await User.findById(req.user._id);
+    const user = await User.findById(userId);
     
     if (!user || !user.refreshToken) {
+      logInfo('No refresh token found for user');
       return res.status(403).json({ error: "No refresh token found" });
     }
 
+    logInfo('Refreshing token with Google');
     const { tokens } = await oauth2Client.refreshToken(user.refreshToken);
 
     res.json({
@@ -89,7 +179,7 @@ export const refreshAccessToken = async (req, res) => {
       expires_in: tokens.expiry_date,
     });
   } catch (error) {
-    console.error("Error refreshing access token:", error);
+    logInfo('Error refreshing access token:', error);
     res.status(500).json({ error: "Failed to refresh access token" });
   }
 };
