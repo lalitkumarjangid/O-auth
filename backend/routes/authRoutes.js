@@ -7,11 +7,17 @@ import {
   getUser,
   refreshAccessToken,
 } from "../controllers/authController.js";
-import { authMiddleware } from "../middleware/authMiddleware.js";
 
 
 
 const authRouter = express.Router();
+
+const authMiddleware = (req, res, next) => {
+  if (req.isAuthenticated()) {
+    return next();
+  }
+  return res.status(401).json({ error: "Not authenticated" });
+};
 
 authRouter.get("/google", googleAuth);
 authRouter.get("/google/callback", googleCallback, googleCallbackRedirect);
