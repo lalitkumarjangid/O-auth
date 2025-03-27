@@ -120,17 +120,40 @@ export const googleCallbackRedirect = (req, res) => {
 export const logout = (req, res) => {
   logInfo('Logging out user');
   
-  // Clear auth cookie
-  res.clearCookie('auth_token');
+  // Clear auth cookie with proper options
+  // The options must match those used when setting the cookie
+  res.clearCookie('auth_token', {
+    httpOnly: true,
+    secure: true,
+    sameSite: 'none',
+    path: '/' // Important: same path as when setting
+  });
   
-  req.logout((err) => {
-    if (err) {
-      logInfo('Logout error:', err);
-      return res
-        .status(500)
-        .json({ message: "Logout failed", error: err.message });
+  // Destroy session
+  req.session.destroy((sessionErr) => {
+    if (sessionErr) {
+      logInfo('Session destruction error:', sessionErr);
     }
-    res.status(200).json({ message: "Logged out successfully" });
+    
+    // Passport logout
+    req.logout((err) => {
+      if (err) {
+        logInfo('Logout error:', err);
+        return res
+          .status(500)
+          .json({ message: "Logout failed", error: err.message });
+      }
+      
+      // Return success - set Cache-Control header to prevent caching
+      res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
+      
+      res.status(200).json({ 
+        message: "Logged out successfully",
+        timestamp: new Date().getTime() // Add timestamp to prevent cached responses
+      });
+    });
   });
 };
 
