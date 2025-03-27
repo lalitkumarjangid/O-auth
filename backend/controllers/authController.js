@@ -28,49 +28,105 @@ export const googleAuth = (req, res, next) => {
 };
 
 export const googleCallback = (req, res, next) => {
-  logInfo('Google callback received');
+  console.log('[AUTH] Google callback received');
   
   passport.authenticate(
     "google",
     { 
       failureRedirect: `${process.env.FRONTEND_URL}/login?error=authentication_failed`,
-      session: true // Ensure session is being used
+      session: true
     },
     (err, user, info) => {
       if (err) {
-        logInfo('Google auth error:', err);
+        console.error('[AUTH] Google auth error:', err);
         return next(err);
       }
       
       if (!user) {
-        logInfo('No user returned from Google auth');
+        console.log('[AUTH] No user returned from Google auth');
         return res.redirect(`${process.env.FRONTEND_URL}/login?error=no_user`);
       }
 
-      logInfo('User authenticated:', user._id);
+      console.log('[AUTH] User authenticated:', user._id);
       
       req.login(user, (loginErr) => {
         if (loginErr) {
-          logInfo('Login error:', loginErr);
+          console.error('[AUTH] Login error:', loginErr);
           return next(loginErr);
         }
         
-        // Set a secure HTTP-only cookie as an extra authentication method
-        // This helps with some serverless environments where sessions might be inconsistent
+        // Set a secure HTTP-only cookie with JWT for cross-domain auth
         res.cookie('auth_token', user._id, {
           httpOnly: true,
-          secure: process.env.NODE_ENV === 'production',
-          sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+          secure: true, // Always use secure in production
+          sameSite: 'none', // Required for cross-domain
           maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
         });
-
-        logInfo(`Redirecting to dashboard: ${process.env.FRONTEND_URL}/dashboard`);
+        
+        console.log(`[AUTH] Redirecting to dashboard: ${process.env.FRONTEND_URL}/dashboard`);
         return res.redirect(`${process.env.FRONTEND_URL}/dashboard`);
       });
     }
   )(req, res, next);
 };
 
+export const getUser = async (req, res) => {
+  console.log('[AUTH] getUser called');
+  console.log('[AUTH] isAuthenticated:', req.isAuthenticated());
+  console.log('[AUTH] Session:', req.session);
+  console.log('[AUTH] Cookies:', req.cookies);
+  
+  try {
+    // First try via session
+    if (req.isAuthenticated() && req.user) {
+      console.log('[AUTH] User authenticated via session:', req.user._id);
+      return res.json({
+        user: {
+          id: req.user._id,
+          displayName: req.user.displayName,
+          email: req.user.email,
+          role: req.user.role,
+        },
+      });
+    }
+    
+    // Then try via cookie
+    const authToken = req.cookies?.auth_token;
+    if (authToken) {
+      console.log('[AUTH] Authenticating via cookie token');
+      const user = await User.findById(authToken);
+      if (user) {
+        // Re-establish session
+        await new Promise((resolve, reject) => {
+          req.login(user, (err) => {
+            if (err) {
+              console.error('[AUTH] Error re-establishing session:', err);
+              reject(err);
+            } else {
+              resolve();
+            }
+          });
+        });
+        
+        console.log('[AUTH] User authenticated via cookie:', user._id);
+        return res.json({
+          user: {
+            id: user._id,
+            displayName: user.displayName,
+            email: user.email,
+            role: user.role,
+          },
+        });
+      }
+    }
+    
+    console.log('[AUTH] No authenticated user found');
+    res.status(401).json({ message: "Not authenticated" });
+  } catch (error) {
+    console.error('[AUTH] getUser error:', error);
+    res.status(500).json({ message: "Server error", error: error.message });
+  }
+};
 export const googleCallbackRedirect = (req, res) => {
   logInfo('Redirect callback');
   res.redirect(`${process.env.FRONTEND_URL}/dashboard`);
@@ -93,55 +149,55 @@ export const logout = (req, res) => {
   });
 };
 
-export const getUser = async (req, res) => {
-  logInfo('getUser called, is authenticated?', req.isAuthenticated());
+// export const getUser = async (req, res) => {
+//   logInfo('getUser called, is authenticated?', req.isAuthenticated());
   
-  // Try to authenticate using session
-  if (req.isAuthenticated() && req.user) {
-    logInfo('User authenticated via session:', req.user._id);
-    return res.json({
-      user: {
-        id: req.user._id,
-        displayName: req.user.displayName,
-        email: req.user.email,
-        role: req.user.role,
-      },
-    });
-  }
+//   // Try to authenticate using session
+//   if (req.isAuthenticated() && req.user) {
+//     logInfo('User authenticated via session:', req.user._id);
+//     return res.json({
+//       user: {
+//         id: req.user._id,
+//         displayName: req.user.displayName,
+//         email: req.user.email,
+//         role: req.user.role,
+//       },
+//     });
+//   }
   
-  // If no session, try authentication via cookie
-  const authToken = req.cookies?.auth_token;
-  if (authToken) {
-    logInfo('Trying to authenticate via cookie token');
-    try {
-      const user = await User.findById(authToken);
-      if (user) {
-        logInfo('User authenticated via cookie:', user._id);
+//   // If no session, try authentication via cookie
+//   const authToken = req.cookies?.auth_token;
+//   if (authToken) {
+//     logInfo('Trying to authenticate via cookie token');
+//     try {
+//       const user = await User.findById(authToken);
+//       if (user) {
+//         logInfo('User authenticated via cookie:', user._id);
         
-        // Re-establish session
-        req.login(user, (err) => {
-          if (err) {
-            logInfo('Error re-establishing session:', err);
-          }
-        });
+//         // Re-establish session
+//         req.login(user, (err) => {
+//           if (err) {
+//             logInfo('Error re-establishing session:', err);
+//           }
+//         });
         
-        return res.json({
-          user: {
-            id: user._id,
-            displayName: user.displayName,
-            email: user.email,
-            role: user.role,
-          },
-        });
-      }
-    } catch (err) {
-      logInfo('Error finding user by token:', err);
-    }
-  }
+//         return res.json({
+//           user: {
+//             id: user._id,
+//             displayName: user.displayName,
+//             email: user.email,
+//             role: user.role,
+//           },
+//         });
+//       }
+//     } catch (err) {
+//       logInfo('Error finding user by token:', err);
+//     }
+//   }
 
-  logInfo('No authenticated user found');
-  res.status(401).json({ message: "Not authenticated" });
-};
+//   logInfo('No authenticated user found');
+//   res.status(401).json({ message: "Not authenticated" });
+// };
 
 export const refreshAccessToken = async (req, res) => {
   logInfo('Refreshing access token');
