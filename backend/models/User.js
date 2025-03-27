@@ -18,10 +18,8 @@ const userSchema = new mongoose.Schema({
     default: 'user',
     enum: ['user', 'admin'] 
   },
-  createdAt: {
-    type: Date,
-    default: Date.now
-  }
-});
+  refreshToken: { type: String },
+ 
+}, { timestamps: true });
 
 export default mongoose.model('User', userSchema);

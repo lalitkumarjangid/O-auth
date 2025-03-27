@@ -4,8 +4,10 @@ import passport from 'passport';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import connectDB from './config/db.js';
-import authRoutes from './routes/authRoutes.js';
 import './config/passport.js'; // Import passport config
+import contentRouter from './routes/contentRoutes.js';
+
+import authRouter from "./routes/authRoutes.js"
 
 // Load environment variables
 dotenv.config();
@@ -34,7 +36,11 @@ app.use(passport.initialize());
 app.use(passport.session());
 
 // Routes
-app.use('/auth', authRoutes);
+app.use('/auth', authRouter);
+app.use("/drive", contentRouter);
+app.get("/", (req, res) => {
+  res.send("API is running...");
+});
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
