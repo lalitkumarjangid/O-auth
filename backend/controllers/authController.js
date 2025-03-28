@@ -70,7 +70,7 @@ export const getUser = async (req, res) => {
           displayName: req.user.displayName,
           email: req.user.email,
           role: req.user.role,
-          photoURL: req.user.photoURL
+          photoURL: req.user.photoURL,
         },
       });
     }
@@ -97,6 +97,7 @@ export const getUser = async (req, res) => {
             displayName: user.displayName,
             email: user.email,
             role: user.role,
+            photoURL: user.photoURL
           },
         });
       }
